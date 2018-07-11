@@ -6,31 +6,16 @@ use mod_globals
 
 implicit none
 
-!汎用
-character(300) :: sbuf
-character(100), allocatable :: sbuflist(:)
-integer :: i, j, k, l
-integer :: ibuf
-integer :: jj, kk, ll !grid
 
-
-!IO
-integer :: hFileList, hFile, hInfo, hOut
-character(8), allocatable :: exts(:)
 
 
 !VTK読み込み
 integer :: fg_noncalc = 0
-integer :: jbgn, jend, kbgn, kend, lbgn, lend
-integer :: ifld, ivct, iscl, idxtime
-character(30), allocatable :: flst(:), vlst(:), slst(:)
-integer, allocatable :: iftp(:)
+
 real(4), allocatable :: wfld(:), wvct(:,:,:,:,:), wscl(:,:,:,:), wgrd(:,:,:,:)
-integer :: fncnum
-character(30), allocatable :: sfnclist(:)
-integer, allocatable :: ifnclist(:)
-integer :: shockdir
-integer :: fg_tgt, tgt
+
+
+
 real(4), allocatable :: dat(:,:)
 
 
@@ -44,60 +29,19 @@ character(:), allocatable :: arg_com
 !==================================INPUT==================================
 
 call readArgs
-
 call setSearchFlowFiles
-
 call setCaseName
-
 hFileList = openFileListStream(ffilter)
-write(6,*) 'File list created.'
-read(hFileList,*, end=999) ifname
-hFile = lock2()
-rewind(hFileList)
-write(6,*) trim(ifname)
+  write(lwrite,*) 'File list created.'
+  call selectFlowInfo
+  call selectProcess
+  select case (lprc)
+    case (1)
+      !
+    case default
+      write(lwrite, *) 'Invalid procedure...'
+  end select
 
-call VTK_Reader_GetNumberOfExtent( &
-&  ifname, hFile, 6, jbgn, jend, kbgn, kend, lbgn, lend)
-
-call VTK_Reader_GetNumberOfFunctions( &
-&  ifname, hFile, 6, ifld, ivct, iscl)
-
-write(6,*) 'Getting grid information...'
-
-allocate(flst(ifld))
-allocate(vlst(ivct))
-allocate(slst(iscl))
-allocate(iftp(ifld))
-
-call VTK_Reader_GetNumberOfTuples(&
-&  ifname, hFile, 6, ifld, iftp)
-
-call VTK_Reader_GetFunctionNames(ifname, hFile, 6, &
-&  ifld, ivct, iscl, flst, vlst, slst)
-
-hFile = release2(hFile)
-
-hInfo = lock2()
-jj = jend-jbgn+1
-kk = kend-kbgn+1
-ll = lend-lbgn+1
-open(unit=hInfo, file=iname, form='formatted', status='replace', err=100)
-write(hInfo, *) 'Sum of grids,' // toString(jj*kk*ll)
-write(hInfo, *) 'Grid Info (xi-eta-zeta),' // toString(jj) // ',' // toString(kk) // ',' // toString(ll)
-write(hInfo, *) 'Number of Field data,' // toString(ifld)
-write(hInfo, 10) 'Field data,', (flst(i), i=1, ifld)
-write(hInfo, 10) 'Size of field data tuples,', (toString(iftp(i)), i=1, ifld)
-write(hInfo, *) 'Number of scalars,' // toString(iscl)
-write(hInfo, 10) 'Scalar data,', (slst(i), i=1, iscl)
-write(hInfo, *) 'Number of vectors,' // toString(ivct)
-write(hInfo, 10) 'Vecor data,', (vlst(i), i=1, ivct)
-hInfo = close2(hInfo)
-hInfo = 0
-100 write(6, *) 'Completed getting infomation of grids. Output files are:'
-write(6,*) iname
-if(hInfo/=0) hInfo=release2(hInfo)
-write(6, *) ' '
-write(6, *) 'Grid Info (xi, eta, zeta),' // toString(jj) // ',' // toString(kk) // ',' // toString(ll)
 
 do
   write(6,*) 'Which direction do you want? (1: xi / 2: eta)'
@@ -107,41 +51,6 @@ enddo
 write(6,*) 'Target coord?'
 read(lread, *) tgt
 
-do i=1, iscl
-  write(6, *) trim(toString(i) // ' : ' // slst(i))
-enddo
-write(6,*) 'What scalar data do you want?'
-write(6,*) 'e.g.) 1-2-4 : Output No.1, No2 and No4 data.'
-read(lread,*) sbuf
-
-sbuf = adjustl(sbuf)
-
-fncnum = countstr(trim(sbuf), '-') + 1
-allocate(sbuflist(fncnum))
-i = 1
-j = 1
-do i=1, fncnum
-  sbuflist(i) = split(trim(sbuf), '-', j)
-enddo
-allocate(ifnclist(fncnum))
-allocate(sfnclist(fncnum))
-allocate(exts(fncnum))
-write(6,*) 'Scalar data to output are:'
-write(6,*) toString(fncnum)//'data set(s)'
-do i=1, fncnum
-  ifnclist(i) = toInteger(sbuflist(i))
-  sbuf = slst(ifnclist(i))
-  sfnclist(i) = trim(sbuf)
-  sbuf = adjustl(sbuf)
-  write(6,*) sbuf
-  exts(i) = '_'//sbuf(1:3)//'.csv'
-enddo
-
-do i=1, ifld
-  write(6, *) trim(toString(i) // ' : ' // flst(i))
-enddo
-write(6,*) 'What field data do you use as time?'
-read(lread,*) idxtime
 
 write(6,*) 'Shock direction? ( -1/ 1 ) If not, prease enter 0.'
 read(lread,*) shockdir
@@ -252,6 +161,126 @@ contains
     endif
     write(lwrite,*) 'case name: ' // boutpfx
   endsubroutine
+
+  function trimMid(estr)
+    character(*), intent(in) :: estr
+    character(:), allocatable :: trimMid
+    character(1), parameter :: cspc = ''
+    integer :: ilen, i1, i2
+    ilen = len(estr)
+    allocate(character(ilen) :: trimMid)
+    trimMid = cspc
+    i2 = 1
+    do i1=1, ilen
+      if(estr(i1:i1) /= cspc)then
+        trimMid(i2:i2) = estr(i1:i1)
+        i2 = i2 + 1
+      endif
+    enddo
+  endfunction
+
+  subroutine selectFlowInfo
+    character(300) :: cflwfil
+    integer :: hFlow, hInfo
+    integer :: ifld, ivct, iscl
+    character(30), allocatable :: cfldlst(:), cvctlst(:), cscllst(:), cinplst(:)
+    character(30) :: cinp
+    integer, allocatable :: iftplst
+    character(*), parameter :: cinfsfx = '_info.csv'
+    integer :: fg_err
+    integer :: iidx, i1
+
+    !Get Grid info
+    read(hFileList,*, end=999) cflwfil
+    rewind(hFileList)
+    write(lwrite,*) 'Getting flowfile format from '//trim(cflwfil)
+    hFlow = lock2()
+      call VTK_Reader_GetNumberOfExtent(cflwfil, hFlow, lwrite, ljbgn, ljend, lkbgn, lkend, llbgn, llend)
+      call VTK_Reader_GetNumberOfFunctions(cflwfil, hFlow, lwrite, ifld, ivct, iscl)
+      allocate(cfldlst(ifld))
+      allocate(cvctlst(ivct))
+      allocate(cscllst(iscl))
+      allocate(iftplst(ifld))
+      call VTK_Reader_GetNumberOfTuples(cflwfil, hFlow, lwrite, ifld, iftplst)
+      call VTK_Reader_GetFunctionNames(cflwfil, hFlow, lwrite, ifld, ivct, iscl, cfldlst, cvctlst, cscllst)
+    hFlow = release2(hFlow)
+
+    !Get FlowFile Functions
+    hInfo = lock2()
+      ljlen = ljend - ljbgn + 1
+      lklen = lkend - lkbgn + 1
+      lllen = llend - llbgn + 1
+      ljklsum = ljlen * lklen * lllen
+      fg_err = 1
+      open(unit=hInfo, file=boutpfx//cinfsfx, form='formatted', status='replace', err=200)
+      write(hInfo, *) 'Sum of grids,' // toString(ljklsum)
+      write(hInfo, *) 'Grid Info (xi-eta-zeta),' // toString(ljlen) // ',' // toString(lklen) // ',' // toString(lllen)
+      write(hInfo, *) 'Number of Field data,' // toString(ifld)
+      write(hInfo, 10) 'Field data,', (cfldlst(iidx), iidx=1, ifld)
+      write(hInfo, 10) 'Size of field data tuples,', (toString(iftplst(iidx)), iidx=1, ifld)
+      write(hInfo, *) 'Number of scalars,' // toString(iscl)
+      write(hInfo, 10) 'Scalar data,', (cscllst(iidx), iidx=1, iscl)
+      write(hInfo, *) 'Number of vectors,' // toString(ivct)
+      write(hInfo, 10) 'Vecor data,', (cvctlst(iidx), iidx=1, ivct)
+      hInfo = close2(hInfo)
+      hInfo = 0
+      fg_err = 0
+200   if(fg_err == 0)then
+        write(lwrite,*) 'Error! Cannot save info file!'
+        stop
+      endif
+      write(lwrite, *) 'Completed getting format of flowfile. Output files are:'
+      write(lwrite,*) boutpfx//cinfsfx
+    if(hInfo/=0) hInfo=release2(hInfo)
+    write(lwrite, *) ' '
+    write(lwrite, *) 'Grid Points (xi, eta, zeta),' // toString(ljlen) // ',' // toString(lklen) // ',' // toString(lllen)
+
+    !Choose Functions
+    do i1=1, iscl
+      write(lwrite, *) trim(toString(i1)//' : '//cscllst(i1))
+    enddo
+    write(lwrite,*) 'Which scalar data do you want?'
+    write(lwrite,*) 'e.g.) 1-2-4 : Output No.1, No2 and No4 data.'
+    read(lread,*) cinp
+    cinp = trimMid(cinp)
+    lscl = countstr(trim(cinp), '-') + 1
+    allocate(cinplst(lscl))
+    iidx = 1
+    do i1=1, lscl
+      cinplst(iidx) = split(trim(cinp), '-', iidx)
+    enddo
+    allocate(lscllst(lscl))
+    allocate(bscllst(lscl))
+    allocate(boutsfx(lscl))
+    write(lwrite,*) 'Scalar data to output are:'
+    write(lwrite,*) toString(lscl)//'data set(s)'
+    do i1=1, lscl
+      lscllst(i1) = toInteger(cinplst(i1))
+      bscllst(i1) = cscllst(lscllst(i1))
+      boutsfx(i1) = '_' // trimMid(bscllst(i1)) // '.csv'
+      write(lwrite,*) trim(adjustl(bscllst(i1)))
+    enddo
+    write(lwrite, *) ' '
+    write(lwrite, *) 'Field data are'
+    do i1=1, ifld
+      write(lwrite, *) trim(toString(i1) // ' : ' // cfldlst(i1))
+    enddo
+    write(lwrite,*) 'Which field data do you use as time?'
+    read(lread,*) ltimidx
+  endsubroutine
+
+  subroutine selectProcess
+    character(30), parameter :: cprclst = (/ 'searchShock' /)
+    integer, parameter :: iprc = size(cprclst)
+    integer :: iidx
+    write(lwrite, *) 'Available procedures of post process are:'
+    do iidx=1, iprc
+      write(lwrite, *) trim(toString(iidx) // ' : ' // cprclst(iidx))
+    enddo
+    write(lwrite,*) 'Which procedure do you use?'
+    read(lread, *) lprc
+  endsubroutine
+
 
   function searchShock(fncnum, fg_tgt2, tgt, idxtime, shc, wfld, wscl, wgrd,&
 & js, je, ks, ke)
