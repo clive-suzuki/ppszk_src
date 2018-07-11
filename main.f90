@@ -2,31 +2,15 @@ program postprocess
 use mod_VTK_IO
 use mod_szk
 use mod_globals
-
+use prc_searchShock
 
 implicit none
 
-
-
-
-!VTK読み込み
-integer :: fg_noncalc = 0
-
-real(4), allocatable :: wfld(:), wvct(:,:,:,:,:), wscl(:,:,:,:), wgrd(:,:,:,:)
-
-
-
-real(4), allocatable :: dat(:,:)
-
-
-
-!コマンドライン
-character(:), allocatable :: arg_com
-
-
 10 format(A40, 100(',', A40))
 11 format(e14.6, 100(',', e14.6))
-!==================================INPUT==================================
+
+
+!==================================ここからメインプログラム==================================
 
 call readArgs
 call setSearchFlowFiles
@@ -37,53 +21,40 @@ hFileList = openFileListStream(ffilter)
   call selectProcess
   select case (lprc)
     case (1)
-      !
+      !shockSearch
+      call setSearchAxis
+      call setShockDirection
+
+      call readyForCalc
+      do
+        call mainloop
+      enddo
     case default
       write(lwrite, *) 'Invalid procedure...'
   end select
+  if(lread /=5) lread=close2(lread)
+
+!==================================ここまでメインプログラム==================================
 
 
-do
-  write(6,*) 'Which direction do you want? (1: xi / 2: eta)'
-  read(lread, *) fg_tgt
-  if(fg_tgt==1 .or. fg_tgt==2) exit
-enddo
-write(6,*) 'Target coord?'
-read(lread, *) tgt
 
 
-write(6,*) 'Shock direction? ( -1/ 1 ) If not, prease enter 0.'
-read(lread,*) shockdir
 
 
-if(lread /=5) lread=close2(lread)
+
+
+
 
 
 !==================================CALC==================================
 
-allocate(wfld(ifld))
-allocate(wvct(3, jj, kk, ll, ivct))
-allocate(wscl(jj, kk, ll, iscl))
-allocate(wgrd(3, jj, kk, ll))
-allocate(dat(6,fncnum))
 
-write(6,*) 'Calcuration start. Output files are:'
-do i=1, fncnum
-  write(6,*) trim(oname)//exts(i)
-  call system('rm '//trim(oname)//exts(i))
-enddo
+
+
 
 do
-  read(hFileList,*, end=999) ifname
-  hFile = lock2()
-  call VTK_Reader_StructuredGrid(&
-& ifname, hFile, 6, '    ',&
-& flst, vlst, slst, ifld, ivct, iscl,&
-& jbgn, jend, kbgn, kend, lbgn, lend,&
-& iftp, wfld, wvct, wscl, wgrd)
-  hFile = release2(hFile)
-  dat = searchShock(fncnum, fg_tgt-1, tgt, idxtime, shockdir,&
-& wfld, wscl, wgrd, jbgn, jend, kbgn, kend)
+
+
 
   write(6, *) ifname
 
@@ -270,72 +241,42 @@ contains
   endsubroutine
 
   subroutine selectProcess
-    character(30), parameter :: cprclst = (/ 'searchShock' /)
-    integer, parameter :: iprc = size(cprclst)
+    integer, parameter :: iprc = size(bprclst)
     integer :: iidx
     write(lwrite, *) 'Available procedures of post process are:'
     do iidx=1, iprc
-      write(lwrite, *) trim(toString(iidx) // ' : ' // cprclst(iidx))
+      write(lwrite, *) trim(toString(iidx) // ' : ' // bprclst(iidx))
     enddo
     write(lwrite,*) 'Which procedure do you use?'
     read(lread, *) lprc
   endsubroutine
 
-
-  function searchShock(fncnum, fg_tgt2, tgt, idxtime, shc, wfld, wscl, wgrd,&
-& js, je, ks, ke)
-    integer, intent(in) :: fg_tgt2, tgt, idxtime, fncnum, shc
-    integer, intent(in) :: js, je, ks, ke
-    real(4), allocatable :: wfld(:), wscl(:,:,:,:), wgrd(:,:,:,:)
-    real(4) :: searchShock(6, fncnum)
-    integer :: i, j, x
-    integer :: maxx
-    real(4), allocatable :: dat(:), cod(:)
-    real(4) :: x_maxrt, rt_max, rt, rtbuf
-
-    maxx = fg_tgt2*(ke-ks+1)-(fg_tgt2-1)*(je-js+1)
-    allocate(dat(maxx+1))
-    allocate(cod(maxx+1))
-
-    do i=1, fncnum
-      searchShock(1, i) = wfld(idxtime)
-      select case (fg_tgt2)
-      case(0)
-!$OMP PARALLEL DO PRIVATE(j)
-          do j=1,maxx
-            dat(j) = wscl(j, tgt, 1, ifnclist(i))
-            cod(j) = wgrd(1, j, tgt, 1)
-          enddo
-!$OMP END PARALLEL DO
-          dat(maxx+1) = wscl(2, tgt, 1, ifnclist(i))
-          cod(maxx+1) = wgrd(2, j, tgt, 1) + cod(maxx)
-        case(1)
-!$OMP PARALLEL DO PRIVATE(j)
-          do j=1,maxx
-            dat(j) = wscl(tgt, j, 1, ifnclist(i))
-            cod(j) = wgrd(1, tgt, j, 1)
-          enddo
-!$OMP END PARALLEL DO
-          dat(maxx+1) = wscl(tgt, 2, 1, ifnclist(i))
-          cod(maxx+1) = wgrd(2, tgt, 1, 1) + cod(maxx)
-      end select
-      rt_max = 0
-      do x=1, maxx
-        if(dat(x)*dat(x+1)*(cod(x+1)-cod(x)) == 0.d0) continue
-        rtbuf = dat(x)/dat(x+1)
-        rt = ((rtbuf)**shc + (1-abs(shc))*max(rtbuf, 1.d0/rtbuf)) / abs(cod(x+1)-cod(x))
-        if(rt_max<rt)then
-          x_maxrt = x
-          rt_max = rt
-        endif
-      enddo
-      if(x_maxrt == maxx+1) x_maxrt = 1
-      searchShock(2, i) = x_maxrt
-      searchShock(3, i) = cod(x_maxrt)
-      searchShock(4, i) = cod(x_maxrt+1)
-      searchShock(5, i) = dat(x_maxrt)
-      searchShock(6, i) = dat(x_maxrt+1)
+  subroutine readyForCalc
+    integer :: i1
+    write(lread,*) 'Now deleting old files...'
+    do i1=1, lscl
+      call system('rm '//trim(boutpfx//boutsfx))
     enddo
-  endfunction
+    allocate(wfld(ifld))
+    allocate(wvct(3, ljlen, lklen, lllen, lvct))
+    allocate(wscl(ljlen, lklen, lllen, lscl))
+    allocate(wgrd(3, ljlen, lklen, lllen))
+    allocate(dat(lprcoutcol(lprc), lscl))
+  endsubroutine
+
+  subroutine mainloop
+    character(300) :: cflwfil
+    integer :: hFlow
+    character(*), parameter :: cdbg = '    '
+    read(hFileList,*, end=999) iflwfil
+    hFlow = lock2()
+    call VTK_Reader_StructuredGrid(iflwfil, hFlow, lwrite, cdbg,&
+&    flst, vlst, slst, ifld, ivct, iscl,&
+  & jbgn, jend, kbgn, kend, lbgn, lend,&
+  & iftp, wfld, wvct, wscl, wgrd)
+    hFile = release2(hFile)
+    dat = searchShock(fncnum, fg_tgt-1, tgt, idxtime, shockdir,&
+  & wfld, wscl, wgrd, jbgn, jend, kbgn, kend)
+  endsubroutine
 
 end program
