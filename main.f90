@@ -1,6 +1,7 @@
 program postprocess
 use mod_VTK_IO
 use mod_szk
+use mod_globals
 
 
 implicit none
@@ -14,10 +15,6 @@ integer :: jj, kk, ll !grid
 
 
 !IO
-integer :: lread
-character(100) :: ifname, cname, oname, iname
-character(*), parameter :: def_ffilter = 'ls | egrep "^#flow" | egrep -v "#flow.vts"'
-character(100) :: ffilter
 integer :: hFileList, hFile, hInfo, hOut
 character(8), allocatable :: exts(:)
 
@@ -46,41 +43,11 @@ character(:), allocatable :: arg_com
 11 format(e14.6, 100(',', e14.6))
 !==================================INPUT==================================
 
-if(command_argument_count() > 0)then
-  call get_command_argument(1, length=ibuf)
-  allocate(character(ibuf) :: arg_com)
-  call get_command_argument(1, arg_com)
-  lread = open2(file=arg_com, form='formatted', status='old')
-else
-  lread = 5
-endif
+call readArgs
 
-write(6,*) 'Use default file search command: ' // def_ffilter // ' ?'
-write(6,*) 'If not, input something excutable to find file.'
-read(lread,'(a)') ffilter
-if(len_trim(ffilter)<2)then
-  ffilter = def_ffilter
-endif
-write(6,*) 'filter: '//ffilter
+call setSearchFlowFiles
 
-call getcwd(sbuf)
-i = 1
-do
-  cname = split(sbuf, '/', i)
-  if (i==0) exit
-enddo
-sbuf = trim(cname) // '_kaiseki'
-
-write(6,*) 'Input name of this case.'
-write(6,*) 'Output file name is ***.csv, ***_info.txt, ...etc'
-write(6,*) 'Press only "Enter" key to use default, "' // trim(sbuf) //'".'
-read(lread,'(a)') cname
-if(len_trim(cname)<2)then
-  cname = trim(sbuf)
-endif
-iname = trim(cname) // '_info.csv'
-oname = trim(cname)
-write(6,*) 'case name: '//cname
+call setCaseName
 
 hFileList = openFileListStream(ffilter)
 write(6,*) 'File list created.'
@@ -222,7 +189,70 @@ do
 enddo
 999 hFileList = closeFindListStream(hFileList)
 
+
+
+
+
+
 contains
+
+  subroutine readArgs
+    integer :: ifilnamlen
+    character(:), allocatable :: cfilnam
+    if(command_argument_count() > 0)then
+      call get_command_argument(1, length=ifilnamlen)
+      allocate(character(ibuf) :: cfilnam)
+      call get_command_argument(1, cfilnam)
+      lread = open2(file=cfilnam, form='formatted', status='old')
+      deallocate(cfilnam)
+    else
+      lread = 5
+    endif
+  endsubroutine
+
+  subroutine setSearchFlowFiles
+    character(*), parameter :: cdeffilcmd = 'ls | egrep "^#flow" | egrep -v "#flow.vts"'
+    character(100) :: cfilcmd
+    write(lwrite,*) 'Use default file search command: ' // cdeffilcmd // ' ?'
+    write(lwrite,*) 'If not, input something excutable to find file.'
+    read(lread,'(a)') cfilcmd
+    if(len_trim(cfilcmd) < 2)then
+      allocate(character(len(cdeffilcmd)) :: bfilcmd)
+      bfilcmd = cdeffilcmd
+    else
+      allocate(character(len_trim(cfilcmd)) :: bfilcmd)
+      bfilcmd = trim(cfilcmd)
+    endif
+    write(lwrite,*) 'file search command: ' // bfilcmd
+  endsubroutine
+
+  subroutine setCaseName
+    character(300) :: cdefoutpfx
+    character(100) :: coutpfx
+    character(*), parameter :: cdefksk = '_kaiseki'
+    integer :: iidx
+    call getcwd(cdefoutpfx)
+    iidx = 1
+    do
+      cdefoutpfx = split(cdefoutpfx, '/', iidx)
+      if (iidx == 0) exit
+    enddo
+    cdefoutpfx = cdefoutpfx // cdefksk
+
+    write(lwrite,*) 'Input name of this case.'
+    write(lwrite,*) 'Output file name is ***.csv, ***_info.txt, ...etc'
+    write(lwrite,*) 'Press only "Enter" key to use default, "' // trim(cdefoutpfx) //'".'
+    read(lread,'(a)') coutpfx
+    if(len_trim(coutpfx) < 2)then
+      allocate(character(len(cdefoutpfx)) :: boutpfx)
+      boutpfx = cdefoutpfx
+    else
+      allocate(character(len_trim(coutpfx)) :: boutpfx)
+      boutpfx = trim(coutpfx)
+    endif
+    write(lwrite,*) 'case name: ' // boutpfx
+  endsubroutine
+
   function searchShock(fncnum, fg_tgt2, tgt, idxtime, shc, wfld, wscl, wgrd,&
 & js, je, ks, ke)
     integer, intent(in) :: fg_tgt2, tgt, idxtime, fncnum, shc
@@ -278,4 +308,5 @@ contains
       searchShock(6, i) = dat(x_maxrt+1)
     enddo
   endfunction
+
 end program
