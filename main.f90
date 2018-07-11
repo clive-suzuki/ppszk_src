@@ -6,7 +6,7 @@ use mod_szk
 implicit none
 
 !汎用
-character(100) :: sbuf
+character(300) :: sbuf
 character(100), allocatable :: sbuflist(:)
 integer :: i, j, k, l
 integer :: ibuf
@@ -50,16 +50,9 @@ if(command_argument_count() > 0)then
   call get_command_argument(1, length=ibuf)
   allocate(character(ibuf) :: arg_com)
   call get_command_argument(1, arg_com)
-  sbuf = arg_com
+  lread = open2(file=arg_com, form='formatted', status='old')
 else
-  write(6,*) 'Input from com?'
-  write(6,*) 'If not, press only "Enter" key to go next.'
-  read(5,'(a)') sbuf
-endif
-if(len_trim(sbuf)==0)then
   lread = 5
-else
-  lread = open2(file=trim(sbuf), form='formatted', status='old')
 endif
 
 write(6,*) 'Use default file search command: ' // def_ffilter // ' ?'
@@ -70,12 +63,20 @@ if(len_trim(ffilter)<2)then
 endif
 write(6,*) 'filter: '//ffilter
 
+getcwd(sbuf)
+i = 1
+do
+  cname = split(sbuf, '/', i)
+  if (i==0) exit
+enddo
+sbuf = trim(cname) // '_kaiseki'
+
 write(6,*) 'Input name of this case.'
 write(6,*) 'Output file name is ***.csv, ***_info.txt, ...etc'
-write(6,*) 'Press only "Enter" key to use default, "kaiseki".'
+write(6,*) 'Press only "Enter" key to use default, "' // trim(sbuf) //'".'
 read(lread,'(a)') cname
 if(len_trim(cname)<2)then
-  cname = "kaiseki"
+  cname = trim(sbuf)
 endif
 iname = trim(cname) // '_info.csv'
 oname = trim(cname)

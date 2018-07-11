@@ -9,6 +9,11 @@ module mod_szk
 
 
 contains
+  ! toString===============
+  !** 整数を文字列へ
+  ! * i      整数
+  ! * return 文字列
+  !========================
   function toString(i)
     integer, intent(in) :: i
     character(:), allocatable :: toString
@@ -17,24 +22,48 @@ contains
     allocate(character(len_trim(str)) :: toString)
     write(toString, *) i
   endfunction
+
+  ! toInteger==============
+  !** 文字列を整数へ
+  ! * a      文字列
+  ! * return 整数
+  !========================
   function toInteger(a)
     character(*), intent(in) :: a
     integer :: toInteger
     read(a, *) toInteger
   endfunction
-  function countstr(a, s, an, sn)
+
+  ! in_countstr===============
+  !** (内部関数)文字列検索
+  ! * a      テキスト全文
+  ! * s      検索文字列
+  ! * an     $aのバイト数
+  ! * sn     $sのバイト数
+  ! * return $aの中にある$sの数
+  !========================
+  function in_countstr(a, s, an, sn)
     integer, intent(in) :: an, sn
     character(an) :: a
     character(sn) :: s
     integer :: ls, i , ii
-    integer :: countstr
+    integer :: in_countstr
     ls = len(s)
-    countstr = 0
+    in_countstr = 0
     ii = len(a) - ls + 1
     do i=1, ii
-      if(a(i:i+ls-1) == s) countstr = countstr + 1
+      if(a(i:i+ls-1) == s) in_countstr = in_countstr + 1
     enddo
   endfunction
+
+  ! split===============
+  !** 文字列分割
+  ! * a        テキスト全文
+  ! * s        検索文字列
+  ! * idx      何文字目から検索か
+  ! * idx(out) 次は何文字目から検索すべきか(0: 終端)
+  ! * return   $aの$idx文字目から，$sが現れる直前or終端までの文字列(未trim)
+  !========================
   function split(a, s, idx)
     character(*), intent(in) :: a, s
     character(:), allocatable:: split
@@ -60,6 +89,7 @@ contains
       i = i + 1
     enddo
   endfunction
+  
   function openFileListStream(command)
     character(*), intent(in), optional :: command
     integer :: openFileListStream
