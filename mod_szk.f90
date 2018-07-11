@@ -34,25 +34,23 @@ contains
     read(a, *) toInteger
   endfunction
 
-  ! in_countstr===============
-  !** (内部関数)文字列検索
+  ! countstr===============
+  !** 文字列検索
   ! * a      テキスト全文
   ! * s      検索文字列
   ! * an     $aのバイト数
   ! * sn     $sのバイト数
   ! * return $aの中にある$sの数
   !========================
-  function in_countstr(a, s, an, sn)
-    integer, intent(in) :: an, sn
-    character(an) :: a
-    character(sn) :: s
+  function countstr(a, s)
+    character(*), intent(in) :: a, s
     integer :: ls, i , ii
-    integer :: in_countstr
+    integer :: countstr
     ls = len(s)
-    in_countstr = 0
+    countstr = 0
     ii = len(a) - ls + 1
     do i=1, ii
-      if(a(i:i+ls-1) == s) in_countstr = in_countstr + 1
+      if(a(i:i+ls-1) == s) countstr = countstr + 1
     enddo
   endfunction
 
@@ -89,7 +87,7 @@ contains
       i = i + 1
     enddo
   endfunction
-  
+
   function openFileListStream(command)
     character(*), intent(in), optional :: command
     integer :: openFileListStream

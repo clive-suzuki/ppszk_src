@@ -63,7 +63,7 @@ if(len_trim(ffilter)<2)then
 endif
 write(6,*) 'filter: '//ffilter
 
-getcwd(sbuf)
+call getcwd(sbuf)
 i = 1
 do
   cname = split(sbuf, '/', i)
@@ -149,7 +149,7 @@ read(lread,*) sbuf
 
 sbuf = adjustl(sbuf)
 
-fncnum = countstr(trim(sbuf), '-', len_trim(sbuf),1) +1
+fncnum = countstr(trim(sbuf), '-') + 1
 allocate(sbuflist(fncnum))
 i = 1
 j = 1
