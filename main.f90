@@ -1,281 +1,291 @@
 program postprocess
 use mod_VTK_IO
 use mod_szk
-
+use mod_globals
+use prc_searchShock
 
 implicit none
 
-!汎用
-character(300) :: sbuf
-character(100), allocatable :: sbuflist(:)
-integer :: i, j, k, l
-integer :: ibuf
-integer :: jj, kk, ll !grid
-
-
-!IO
-integer :: lread
-character(100) :: ifname, cname, oname, iname
-character(*), parameter :: def_ffilter = 'ls | egrep "^#flow" | egrep -v "#flow.vts"'
-character(100) :: ffilter
-integer :: hFileList, hFile, hInfo, hOut
-character(8), allocatable :: exts(:)
-
-
-!VTK読み込み
-integer :: fg_noncalc = 0
-integer :: jbgn, jend, kbgn, kend, lbgn, lend
-integer :: ifld, ivct, iscl, idxtime
-character(30), allocatable :: flst(:), vlst(:), slst(:)
-integer, allocatable :: iftp(:)
-real(4), allocatable :: wfld(:), wvct(:,:,:,:,:), wscl(:,:,:,:), wgrd(:,:,:,:)
-integer :: fncnum
-character(30), allocatable :: sfnclist(:)
-integer, allocatable :: ifnclist(:)
-integer :: shockdir
-integer :: fg_tgt, tgt
-real(4), allocatable :: dat(:,:)
 
 
 
-!コマンドライン
-character(:), allocatable :: arg_com
 
+!==================================ここからメインプログラム==================================
 
-10 format(A40, 100(',', A40))
-11 format(e14.6, 100(',', e14.6))
-!==================================INPUT==================================
+call readArgs
+write(lwrite, *) 'Hello, this is ppszk!!'
+write(lwrite, *) ' '
+call setSearchFlowFiles
+call setCaseName
+hFileList = openFileListStream(bfilcmd)
+  write(lwrite,*) 'File list created.'
+  call selectFlowInfo
+  call selectProcess
+  select case (lprc)
 
-if(command_argument_count() > 0)then
-  call get_command_argument(1, length=ibuf)
-  allocate(character(ibuf) :: arg_com)
-  call get_command_argument(1, arg_com)
-  lread = open2(file=arg_com, form='formatted', status='old')
-else
-  lread = 5
-endif
+!==========================ここから処理(1)
+    case (1)
+      !========ここから可変
+      call setSearchAxis
+      call setShockDirection
+      !========ここまで可変
 
-write(6,*) 'Use default file search command: ' // def_ffilter // ' ?'
-write(6,*) 'If not, input something excutable to find file.'
-read(lread,'(a)') ffilter
-if(len_trim(ffilter)<2)then
-  ffilter = def_ffilter
-endif
-write(6,*) 'filter: '//ffilter
+      call readyForCalc
+      fg_loop = 0
+      do while (fg_loop == 0)
+        call input
+        !========ここから可変
+        call searchShock
+        !========ここまで可変
+        call output
+      enddo
+!==========================ここまで処理(1)
 
-call getcwd(sbuf)
-i = 1
-do
-  cname = split(sbuf, '/', i)
-  if (i==0) exit
-enddo
-sbuf = trim(cname) // '_kaiseki'
+    case default
+      write(lwrite, *) 'Invalid procedure...'
+      hFileList = closeFindListStream(hFileList)
+      stop
 
-write(6,*) 'Input name of this case.'
-write(6,*) 'Output file name is ***.csv, ***_info.txt, ...etc'
-write(6,*) 'Press only "Enter" key to use default, "' // trim(sbuf) //'".'
-read(lread,'(a)') cname
-if(len_trim(cname)<2)then
-  cname = trim(sbuf)
-endif
-iname = trim(cname) // '_info.csv'
-oname = trim(cname)
-write(6,*) 'case name: '//cname
-
-hFileList = openFileListStream(ffilter)
-write(6,*) 'File list created.'
-read(hFileList,*, end=999) ifname
-hFile = lock2()
-rewind(hFileList)
-write(6,*) trim(ifname)
-
-call VTK_Reader_GetNumberOfExtent( &
-&  ifname, hFile, 6, jbgn, jend, kbgn, kend, lbgn, lend)
-
-call VTK_Reader_GetNumberOfFunctions( &
-&  ifname, hFile, 6, ifld, ivct, iscl)
-
-write(6,*) 'Getting grid information...'
-
-allocate(flst(ifld))
-allocate(vlst(ivct))
-allocate(slst(iscl))
-allocate(iftp(ifld))
-
-call VTK_Reader_GetNumberOfTuples(&
-&  ifname, hFile, 6, ifld, iftp)
-
-call VTK_Reader_GetFunctionNames(ifname, hFile, 6, &
-&  ifld, ivct, iscl, flst, vlst, slst)
-
-hFile = release2(hFile)
-
-hInfo = lock2()
-jj = jend-jbgn+1
-kk = kend-kbgn+1
-ll = lend-lbgn+1
-open(unit=hInfo, file=iname, form='formatted', status='replace', err=100)
-write(hInfo, *) 'Sum of grids,' // toString(jj*kk*ll)
-write(hInfo, *) 'Grid Info (xi-eta-zeta),' // toString(jj) // ',' // toString(kk) // ',' // toString(ll)
-write(hInfo, *) 'Number of Field data,' // toString(ifld)
-write(hInfo, 10) 'Field data,', (flst(i), i=1, ifld)
-write(hInfo, 10) 'Size of field data tuples,', (toString(iftp(i)), i=1, ifld)
-write(hInfo, *) 'Number of scalars,' // toString(iscl)
-write(hInfo, 10) 'Scalar data,', (slst(i), i=1, iscl)
-write(hInfo, *) 'Number of vectors,' // toString(ivct)
-write(hInfo, 10) 'Vecor data,', (vlst(i), i=1, ivct)
-hInfo = close2(hInfo)
-hInfo = 0
-100 write(6, *) 'Completed getting infomation of grids. Output files are:'
-write(6,*) iname
-if(hInfo/=0) hInfo=release2(hInfo)
-write(6, *) ' '
-write(6, *) 'Grid Info (xi, eta, zeta),' // toString(jj) // ',' // toString(kk) // ',' // toString(ll)
-
-do
-  write(6,*) 'Which direction do you want? (1: xi / 2: eta)'
-  read(lread, *) fg_tgt
-  if(fg_tgt==1 .or. fg_tgt==2) exit
-enddo
-write(6,*) 'Target coord?'
-read(lread, *) tgt
-
-do i=1, iscl
-  write(6, *) trim(toString(i) // ' : ' // slst(i))
-enddo
-write(6,*) 'What scalar data do you want?'
-write(6,*) 'e.g.) 1-2-4 : Output No.1, No2 and No4 data.'
-read(lread,*) sbuf
-
-sbuf = adjustl(sbuf)
-
-fncnum = countstr(trim(sbuf), '-') + 1
-allocate(sbuflist(fncnum))
-i = 1
-j = 1
-do i=1, fncnum
-  sbuflist(i) = split(trim(sbuf), '-', j)
-enddo
-allocate(ifnclist(fncnum))
-allocate(sfnclist(fncnum))
-allocate(exts(fncnum))
-write(6,*) 'Scalar data to output are:'
-write(6,*) toString(fncnum)//'data set(s)'
-do i=1, fncnum
-  ifnclist(i) = toInteger(sbuflist(i))
-  sbuf = slst(ifnclist(i))
-  sfnclist(i) = trim(sbuf)
-  sbuf = adjustl(sbuf)
-  write(6,*) sbuf
-  exts(i) = '_'//sbuf(1:3)//'.csv'
-enddo
-
-do i=1, ifld
-  write(6, *) trim(toString(i) // ' : ' // flst(i))
-enddo
-write(6,*) 'What field data do you use as time?'
-read(lread,*) idxtime
-
-write(6,*) 'Shock direction? ( -1/ 1 ) If not, prease enter 0.'
-read(lread,*) shockdir
-
-
+  end select
+100 hFileList = closeFindListStream(hFileList)
 if(lread /=5) lread=close2(lread)
+write(lwrite, *) 'MISSION ACCOMPLISHED !!!!'
+stop
 
-
-!==================================CALC==================================
-
-allocate(wfld(ifld))
-allocate(wvct(3, jj, kk, ll, ivct))
-allocate(wscl(jj, kk, ll, iscl))
-allocate(wgrd(3, jj, kk, ll))
-allocate(dat(6,fncnum))
-
-write(6,*) 'Calcuration start. Output files are:'
-do i=1, fncnum
-  write(6,*) trim(oname)//exts(i)
-  call system('rm '//trim(oname)//exts(i))
-enddo
-
-do
-  read(hFileList,*, end=999) ifname
-  hFile = lock2()
-  call VTK_Reader_StructuredGrid(&
-& ifname, hFile, 6, '    ',&
-& flst, vlst, slst, ifld, ivct, iscl,&
-& jbgn, jend, kbgn, kend, lbgn, lend,&
-& iftp, wfld, wvct, wscl, wgrd)
-  hFile = release2(hFile)
-  dat = searchShock(fncnum, fg_tgt-1, tgt, idxtime, shockdir,&
-& wfld, wscl, wgrd, jbgn, jend, kbgn, kend)
-
-  write(6, *) ifname
-
-!$OMP PARALLEL DO PRIVATE(i)
-  do i=1,fncnum
-    hOut = lock2()
-    open(unit=hOut, file=trim(oname)//exts(i), form='formatted', position='append')
-    write(hOut, 11) (dat(j,i), j=1, 6)
-    hOut = close2(hOut)
-  enddo
-!$OMP END PARALLEL DO
-enddo
-999 hFileList = closeFindListStream(hFileList)
+!==================================ここまでメインプログラム==================================
 
 contains
-  function searchShock(fncnum, fg_tgt2, tgt, idxtime, shc, wfld, wscl, wgrd,&
-& js, je, ks, ke)
-    integer, intent(in) :: fg_tgt2, tgt, idxtime, fncnum, shc
-    integer, intent(in) :: js, je, ks, ke
-    real(4), allocatable :: wfld(:), wscl(:,:,:,:), wgrd(:,:,:,:)
-    real(4) :: searchShock(6, fncnum)
-    integer :: i, j, x
-    integer :: maxx
-    real(4), allocatable :: dat(:), cod(:)
-    real(4) :: x_maxrt, rt_max, rt, rtbuf
 
-    maxx = fg_tgt2*(ke-ks+1)-(fg_tgt2-1)*(je-js+1)
-    allocate(dat(maxx+1))
-    allocate(cod(maxx+1))
+!==================================ここからサブルーチン======================================
 
-    do i=1, fncnum
-      searchShock(1, i) = wfld(idxtime)
-      select case (fg_tgt2)
-      case(0)
-!$OMP PARALLEL DO PRIVATE(j)
-          do j=1,maxx
-            dat(j) = wscl(j, tgt, 1, ifnclist(i))
-            cod(j) = wgrd(1, j, tgt, 1)
-          enddo
-!$OMP END PARALLEL DO
-          dat(maxx+1) = wscl(2, tgt, 1, ifnclist(i))
-          cod(maxx+1) = wgrd(2, j, tgt, 1) + cod(maxx)
-        case(1)
-!$OMP PARALLEL DO PRIVATE(j)
-          do j=1,maxx
-            dat(j) = wscl(tgt, j, 1, ifnclist(i))
-            cod(j) = wgrd(1, tgt, j, 1)
-          enddo
-!$OMP END PARALLEL DO
-          dat(maxx+1) = wscl(tgt, 2, 1, ifnclist(i))
-          cod(maxx+1) = wgrd(2, tgt, 1, 1) + cod(maxx)
-      end select
-      rt_max = 0
-      do x=1, maxx
-        if(dat(x)*dat(x+1)*(cod(x+1)-cod(x)) == 0.d0) continue
-        rtbuf = dat(x)/dat(x+1)
-        rt = ((rtbuf)**shc + (1-abs(shc))*max(rtbuf, 1.d0/rtbuf)) / abs(cod(x+1)-cod(x))
-        if(rt_max<rt)then
-          x_maxrt = x
-          rt_max = rt
-        endif
-      enddo
-      if(x_maxrt == maxx+1) x_maxrt = 1
-      searchShock(2, i) = x_maxrt
-      searchShock(3, i) = cod(x_maxrt)
-      searchShock(4, i) = cod(x_maxrt+1)
-      searchShock(5, i) = dat(x_maxrt)
-      searchShock(6, i) = dat(x_maxrt+1)
+  function toFileName(a)
+    character(*), intent(in) :: a
+    character(3) :: cbuf, toFileName
+    integer ::  i
+    cbuf = (trim(a) // '___')
+    toFileName = ''
+    do i=1,3
+      if(cbuf(i:i) == '[' .or. cbuf(i:i) == ']')then
+        toFileName = trim(toFileName) // '-'
+      else
+        toFileName = trim(toFileName) // cbuf(i:i)
+      endif
     enddo
   endfunction
+
+  subroutine readArgs
+    integer :: ifilnamlen
+    character(:), allocatable :: cfilnam
+    if(command_argument_count() > 0)then
+      call get_command_argument(1, length=ifilnamlen)
+      allocate(character(ifilnamlen) :: cfilnam)
+      call get_command_argument(1, cfilnam)
+      lread = open2(file=cfilnam, form='formatted', status='old')
+    else
+      lread = 5
+    endif
+  endsubroutine
+
+  subroutine setSearchFlowFiles
+    character(*), parameter :: cdeffilcmd = 'ls | egrep "^#flow" | egrep -v "#flow.vts"'
+    character(100) :: cfilcmd
+    write(lwrite,*) 'If you use default file search command, press only "Enter" key.'
+    write(lwrite,*) 'default command: ' // cdeffilcmd
+    write(lwrite,*) 'If not, input something excutable to find file.'
+    read(lread,'(a)') cfilcmd
+    if(len_trim(cfilcmd) < 2)then
+      allocate(character(len(cdeffilcmd)) :: bfilcmd)
+      bfilcmd = cdeffilcmd
+    else
+      allocate(character(len_trim(cfilcmd)) :: bfilcmd)
+      bfilcmd = trim(cfilcmd)
+    endif
+    write(lwrite,*) 'file search command: ' // bfilcmd
+    write(lwrite, *) ' '
+  endsubroutine
+
+  subroutine setCaseName
+    character(300) :: cdefoutpfx, cdir
+    character(100) :: coutpfx
+    character(*), parameter :: cdefksk = '_kaiseki'
+    integer :: iidx
+    call getcwd(cdefoutpfx)
+    iidx = 1
+    do
+      cdir = split(trim(cdefoutpfx), '/', iidx)
+      if (iidx == 0) exit
+    enddo
+    cdefoutpfx = trim(cdir) // cdefksk
+
+    write(lwrite,*) 'Input name of this case!'
+    write(lwrite,*) 'Output file name is ***_Pre.csv, ***_info.csv, ...etc'
+    write(lwrite,*) 'Press only "Enter" key to use default, "' // trim(cdefoutpfx) //'".'
+    read(lread,'(a)') coutpfx
+    if(len_trim(coutpfx) < 2)then
+      allocate(character(len_trim(cdefoutpfx)) :: boutpfx)
+      boutpfx = trim(cdefoutpfx)
+    else
+      allocate(character(len_trim(coutpfx)) :: boutpfx)
+      boutpfx = trim(coutpfx)
+    endif
+    write(lwrite,*) 'case name: ' // boutpfx
+    write(lwrite, *) ' '
+  endsubroutine
+
+  subroutine selectFlowInfo
+    character(300) :: cflwfil
+    integer :: hFlow, hInfo
+    character(30), allocatable :: cinplst(:)
+    character(30) :: cinp
+    character(*), parameter :: cinfsfx = '_info.csv'
+    integer :: fg_err
+    integer :: iidx, i1
+
+201 format(A40, 100(',', A40))
+
+    !Get Grid info
+    read(hFileList,*) cflwfil
+    rewind(hFileList)
+    write(lwrite,*) 'Getting flowfile format from "'//trim(cflwfil)//'"'
+    hFlow = lock2()
+      call VTK_Reader_GetNumberOfExtent(cflwfil, hFlow, lwrite, ljbgn, ljend, lkbgn, lkend, llbgn, llend)
+      call VTK_Reader_GetNumberOfFunctions(cflwfil, hFlow, lwrite, lallfld, lallvct, lallscl)
+      allocate(ballfldlst(lallfld))
+      allocate(ballvctlst(lallvct))
+      allocate(ballscllst(lallscl))
+      allocate(lallftplst(lallfld))
+      call VTK_Reader_GetNumberOfTuples(cflwfil, hFlow, lwrite, lallfld, lallftplst)
+      call VTK_Reader_GetFunctionNames(cflwfil, hFlow, lwrite, lallfld, lallvct, lallscl, ballfldlst, ballvctlst, ballscllst)
+    hFlow = release2(hFlow)
+
+    !Get FlowFile Functions
+    hInfo = lock2()
+      ljlen = ljend - ljbgn + 1
+      lklen = lkend - lkbgn + 1
+      lllen = llend - llbgn + 1
+      ljklsum = ljlen * lklen * lllen
+      fg_err = 1
+      open(unit=hInfo, file=boutpfx//cinfsfx, form='formatted', status='replace', err=200)
+      write(hInfo, *) 'Sum of grids,' // toString(ljklsum)
+      write(hInfo, *) 'Grid Info (xi-eta-zeta),' // toString(ljlen) // ',' // toString(lklen) // ',' // toString(lllen)
+      write(hInfo, *) 'Number of Field data,' // toString(lallfld)
+      write(hInfo, 201) 'Field data,', (ballfldlst(iidx), iidx=1, lallfld)
+      write(hInfo, 201) 'Size of field data tuples,', (toString(lallftplst(iidx)), iidx=1, lallfld)
+      write(hInfo, *) 'Number of scalars,' // toString(lallscl)
+      write(hInfo, 201) 'Scalar data,', (ballscllst(iidx), iidx=1, lallscl)
+      write(hInfo, *) 'Number of vectors,' // toString(lallvct)
+      write(hInfo, 201) 'Vecor data,', (ballvctlst(iidx), iidx=1, lallvct)
+      hInfo = close2(hInfo)
+      hInfo = 0
+      fg_err = 0
+200   if(fg_err == 1)then
+        write(lwrite,*) 'Error! Cannot save info file!'
+        write(lwrite, *) ' '
+        stop
+      endif
+      write(lwrite, *) 'Completed getting format of flowfile. Output files are:'
+      write(lwrite,*) boutpfx//cinfsfx
+    if(hInfo/=0) hInfo=release2(hInfo)
+    write(lwrite, *) ' '
+    write(lwrite, *) 'Grid Points (xi, eta, zeta),' // toString(ljlen) // ',' // toString(lklen) // ',' // toString(lllen)
+
+    !Choose Functions
+    do i1=1, lallscl
+      write(lwrite, *) trim(toString(i1)//' : '//ballscllst(i1))
+    enddo
+    write(lwrite,*) 'Which scalar data do you want?'
+    write(lwrite,*) 'e.g.) 1-2-4 : Output No.1, No2 and No4 data.'
+    read(lread,*) cinp
+    cinp = deleteSpace(cinp)
+    lscl = countstr(trim(cinp), '-') + 1
+    allocate(cinplst(lscl))
+    iidx = 1
+    do i1=1, lscl
+      cinplst(i1) = split(trim(cinp), '-', iidx)
+    enddo
+    allocate(lscllst(lscl))
+    allocate(bscllst(lscl))
+    allocate(boutsfx(lscl))
+    write(lwrite,*) 'Scalar data to output are:'
+    write(lwrite,*) toString(lscl)//'data set(s)'
+    do i1=1, lscl
+      lscllst(i1) = toInteger(cinplst(i1))
+      bscllst(i1) = ballscllst(lscllst(i1))
+      boutsfx(i1) = '_' // toFileName(deleteSpace(bscllst(i1))) // '.csv'
+      write(lwrite,*) atrim(bscllst(i1))
+    enddo
+    write(lwrite, *) ' '
+    write(lwrite, *) 'Field data are'
+    do i1=1, lallfld
+      write(lwrite, *) trim(toString(i1) // ' : ' // ballfldlst(i1))
+    enddo
+    write(lwrite,*) 'Which field data do you use as time?'
+    read(lread,*) ltimidx
+    write(lwrite,*) 'Use as time: '
+    write(lwrite,*) ballfldlst(ltimidx)
+    write(lwrite, *) ' '
+  endsubroutine
+
+  subroutine selectProcess
+    integer, parameter :: iprc = size(bprclst)
+    integer :: iidx
+    write(lwrite, *) 'Available procedures of post process are:'
+    do iidx=1, iprc
+      write(lwrite, *) trim(toString(iidx) // ' : ' // bprclst(iidx))
+    enddo
+    write(lwrite,*) 'Which procedure do you use?'
+    read(lread, *) lprc
+    write(lwrite,*) 'Procedure: '
+    write(lwrite,*) bprclst(lprc)
+    write(lwrite, *) ' '
+    write(lwrite, *) 'Now, entering user procedure...'
+    write(lwrite, *) ' '
+  endsubroutine
+
+  subroutine readyForCalc
+    integer :: i1
+    write(lwrite,*) 'Now deleting old files...'
+    do i1=1, lscl
+      call system('rm '//trim(boutpfx//boutsfx(i1)))
+    enddo
+    allocate(sfld(lallfld))
+    allocate(lftp(lfld))
+    allocate(svct(3, ljlen, lklen, lllen, lallvct))
+    allocate(sscl(ljlen, lklen, lllen, lallscl))
+    allocate(sgrd(3, ljlen, lklen, lllen))
+    allocate(sout(lprcoutcol(lprc), lscl))
+    write(lwrite,*) 'Start main loop...'
+  endsubroutine
+
+  subroutine input
+    character(300) :: cflwfil
+    integer :: hFlow
+    character(*), parameter :: cdbg = '    '
+    read(hFileList,*, end=210) cflwfil
+    write(lwrite, *) cflwfil
+    hFlow = lock2()
+    call VTK_Reader_StructuredGrid(cflwfil, hFlow, lwrite, cdbg,&
+&    ballfldlst, ballvctlst, ballscllst, lallfld, lallvct, lallscl,&
+&    ljbgn, ljend, lkbgn, lkend, llbgn, llend, lallftplst, sfld, svct, sscl, sgrd)
+    hFlow = release2(hFlow)
+    return
+210 fg_loop = 1
+  endsubroutine
+
+  subroutine output
+    integer :: i1, i2
+    integer :: hOut
+
+202 format(e14.6, 100(',', e14.6))
+
+    do i1=1, lscl
+      hOut = lock2()
+      open(unit=hOut, file=boutpfx//boutsfx(i1), form='formatted', position='append')
+      write(hOut, 202) (sout(i2,i1), i2=1, lprcoutcol(lprc))
+      hOut = close2(hOut)
+    enddo
+  endsubroutine
+
+!==================================ここまでサブルーチン======================================
+
 end program

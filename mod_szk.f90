@@ -9,6 +9,17 @@ module mod_szk
 
 
 contains
+
+  function atrim(a)
+    character(*), intent(in) :: a
+    character(:), allocatable :: atrim
+    character(:), allocatable :: buf
+    allocate(character(len(a)) :: buf)
+    buf = adjustl(a)
+    allocate(character(len_trim(buf)) :: atrim)
+    atrim = trim(buf)
+  endfunction
+
   ! toString===============
   !** 整数を文字列へ
   ! * i      整数
@@ -19,8 +30,9 @@ contains
     character(:), allocatable :: toString
     character(20) :: str
     write(str, *) i
+    str = atrim(str)
     allocate(character(len_trim(str)) :: toString)
-    write(toString, *) i
+    toString = trim(str)
   endfunction
 
   ! toInteger==============
@@ -56,7 +68,7 @@ contains
 
   ! split===============
   !** 文字列分割
-  ! * a        テキスト全文
+  ! * a        テキスト全文(trim済を渡すこと！)
   ! * s        検索文字列
   ! * idx      何文字目から検索か
   ! * idx(out) 次は何文字目から検索すべきか(0: 終端)
@@ -80,12 +92,34 @@ contains
         if(idx > la) idx = 0
         exit
       else if(i == ii)then
+        allocate(character(la-idx+1) :: split)
         split = a(idx:la)
         idx = 0
         exit
       endif
       i = i + 1
     enddo
+  endfunction
+
+  function deleteSpace(estr)
+    character(*), intent(in) :: estr
+    character(:), allocatable :: deleteSpace
+    character(:), allocatable :: sbuf
+    character(1), parameter :: cspc = ' '
+    integer :: ilen1,ilen2 , i1, i2
+    ilen1 = len(estr)
+    ilen2 = ilen1 - countstr(estr, cspc)
+    allocate(character(ilen2) :: sbuf)
+    sbuf = ''
+    i2 = 1
+    do i1=1, ilen2
+      if(estr(i1:i1) /= cspc)then
+        sbuf = trim(sbuf) // estr(i1:i1)
+        i2 = i2 + 1
+      endif
+    enddo
+    allocate(character(len_trim(sbuf)) :: deleteSpace)
+    deleteSpace = trim(sbuf)
   endfunction
 
   function openFileListStream(command)
