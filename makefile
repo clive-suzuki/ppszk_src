@@ -2,8 +2,8 @@
 FC = ifort
 
 TARGET = ${HOME}/bin/ppszk
-OBJECTS = mod_VTK_IO.o mod_szk.o mod_globals.o prc_searcbShock.o main.o
-MOD_FILES = mod_VTK_IO.mod mod_szk.mod mod_globals.mod prc_searcbShock.mod
+OBJECTS = mod_VTK_IO.o mod_szk.o mod_globals.o prc_searchShock.o main.o
+MOD_FILES = mod_VTK_IO.mod mod_szk.mod mod_globals.mod prc_searchShock.mod
 
 FFLAGS =
 LDFLAGS =

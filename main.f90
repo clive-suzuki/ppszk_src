@@ -6,16 +6,18 @@ use prc_searchShock
 
 implicit none
 
-10 format(A40, 100(',', A40))
-11 format(e14.6, 100(',', e14.6))
+
+
 
 
 !==================================ここからメインプログラム==================================
 
 call readArgs
+write(lwrite, *) 'Hello, this is ppszk!!'
+write(lwrite, *) ' '
 call setSearchFlowFiles
 call setCaseName
-hFileList = openFileListStream(ffilter)
+hFileList = openFileListStream(bfilcmd)
   write(lwrite,*) 'File list created.'
   call selectFlowInfo
   call selectProcess
@@ -29,7 +31,8 @@ hFileList = openFileListStream(ffilter)
       !========ここまで可変
 
       call readyForCalc
-      do
+      fg_loop = 0
+      do while (fg_loop == 0)
         call input
         !========ここから可変
         call searchShock
@@ -60,7 +63,7 @@ contains
     character(:), allocatable :: cfilnam
     if(command_argument_count() > 0)then
       call get_command_argument(1, length=ifilnamlen)
-      allocate(character(ibuf) :: cfilnam)
+      allocate(character(ifilnamlen) :: cfilnam)
       call get_command_argument(1, cfilnam)
       lread = open2(file=cfilnam, form='formatted', status='old')
     else
@@ -71,7 +74,8 @@ contains
   subroutine setSearchFlowFiles
     character(*), parameter :: cdeffilcmd = 'ls | egrep "^#flow" | egrep -v "#flow.vts"'
     character(100) :: cfilcmd
-    write(lwrite,*) 'Use default file search command: ' // cdeffilcmd // ' ?'
+    write(lwrite,*) 'If you use default file search command, press only "Enter" key.'
+    write(lwrite,*) 'default command: ' // cdeffilcmd
     write(lwrite,*) 'If not, input something excutable to find file.'
     read(lread,'(a)') cfilcmd
     if(len_trim(cfilcmd) < 2)then
@@ -82,6 +86,7 @@ contains
       bfilcmd = trim(cfilcmd)
     endif
     write(lwrite,*) 'file search command: ' // bfilcmd
+    write(lwrite, *) ' '
   endsubroutine
 
   subroutine setCaseName
@@ -90,6 +95,7 @@ contains
     character(*), parameter :: cdefksk = '_kaiseki'
     integer :: iidx
     call getcwd(cdefoutpfx)
+    write(6,*) cdefoutpfx
     iidx = 1
     do
       cdefoutpfx = split(cdefoutpfx, '/', iidx)
@@ -97,7 +103,7 @@ contains
     enddo
     cdefoutpfx = cdefoutpfx // cdefksk
 
-    write(lwrite,*) 'Input name of this case.'
+    write(lwrite,*) 'Input name of this case!'
     write(lwrite,*) 'Output file name is ***.csv, ***_info.txt, ...etc'
     write(lwrite,*) 'Press only "Enter" key to use default, "' // trim(cdefoutpfx) //'".'
     read(lread,'(a)') coutpfx
@@ -109,6 +115,7 @@ contains
       boutpfx = trim(coutpfx)
     endif
     write(lwrite,*) 'case name: ' // boutpfx
+    write(lwrite, *) ' '
   endsubroutine
 
   function trimMid(estr)
@@ -137,8 +144,10 @@ contains
     integer :: fg_err
     integer :: iidx, i1
 
+201 format(A40, 100(',', A40))
+
     !Get Grid info
-    read(hFileList,*, end=999) cflwfil
+    read(hFileList,*) cflwfil
     rewind(hFileList)
     write(lwrite,*) 'Getting flowfile format from '//trim(cflwfil)
     hFlow = lock2()
@@ -163,17 +172,18 @@ contains
       write(hInfo, *) 'Sum of grids,' // toString(ljklsum)
       write(hInfo, *) 'Grid Info (xi-eta-zeta),' // toString(ljlen) // ',' // toString(lklen) // ',' // toString(lllen)
       write(hInfo, *) 'Number of Field data,' // toString(lallfld)
-      write(hInfo, 10) 'Field data,', (ballfldlst(iidx), iidx=1, lallfld)
-      write(hInfo, 10) 'Size of field data tuples,', (toString(lallftplst(iidx)), iidx=1, lallfld)
+      write(hInfo, 201) 'Field data,', (ballfldlst(iidx), iidx=1, lallfld)
+      write(hInfo, 201) 'Size of field data tuples,', (toString(lallftplst(iidx)), iidx=1, lallfld)
       write(hInfo, *) 'Number of scalars,' // toString(lallscl)
-      write(hInfo, 10) 'Scalar data,', (ballscllst(iidx), iidx=1, lallscl)
+      write(hInfo, 201) 'Scalar data,', (ballscllst(iidx), iidx=1, lallscl)
       write(hInfo, *) 'Number of vectors,' // toString(lallvct)
-      write(hInfo, 10) 'Vecor data,', (ballvctlst(iidx), iidx=1, lallvct)
+      write(hInfo, 201) 'Vecor data,', (ballvctlst(iidx), iidx=1, lallvct)
       hInfo = close2(hInfo)
       hInfo = 0
       fg_err = 0
 200   if(fg_err == 0)then
         write(lwrite,*) 'Error! Cannot save info file!'
+        write(lwrite, *) ' '
         stop
       endif
       write(lwrite, *) 'Completed getting format of flowfile. Output files are:'
@@ -214,6 +224,9 @@ contains
     enddo
     write(lwrite,*) 'Which field data do you use as time?'
     read(lread,*) ltimidx
+    write(lwrite,*) 'Use as time: '
+    write(lwrite,*) ballfldlst(ltimidx)
+    write(lwrite, *) ' '
   endsubroutine
 
   subroutine selectProcess
@@ -225,42 +238,52 @@ contains
     enddo
     write(lwrite,*) 'Which procedure do you use?'
     read(lread, *) lprc
+    write(lwrite,*) 'Procedure: '
+    write(lwrite,*) bprclst(iidx)
+    write(lwrite, *) ' '
+    write(lwrite, *) 'Now, entering user procedure...'
+    write(lwrite, *) ' '
   endsubroutine
 
   subroutine readyForCalc
     integer :: i1
     write(lread,*) 'Now deleting old files...'
     do i1=1, lscl
-      call system('rm '//trim(boutpfx//boutsfx))
+      call system('rm '//trim(boutpfx//boutsfx(i1)))
     enddo
-    allocate(sfld(ifld))
-    allocate(lftp(ifld))
+    allocate(sfld(lfld))
+    allocate(lftp(lfld))
     allocate(svct(3, ljlen, lklen, lllen, lvct))
     allocate(sscl(ljlen, lklen, lllen, lscl))
     allocate(sgrd(3, ljlen, lklen, lllen))
-    allocate(sdat(lprcoutcol(lprc), lscl))
+    allocate(sout(lprcoutcol(lprc), lscl))
   endsubroutine
 
   subroutine input
     character(300) :: cflwfil
     integer :: hFlow
     character(*), parameter :: cdbg = '    '
-    read(hFileList,*, end=100) cflwfil
+    read(hFileList,*, end=210) cflwfil
     write(lwrite, *) cflwfil
     hFlow = lock2()
-    call VTK_Reader_StructuredGrid(iflwfil, hFlow, lwrite, cdbg,&
+    call VTK_Reader_StructuredGrid(cflwfil, hFlow, lwrite, cdbg,&
 &    ballfldlst, ballvctlst, ballscllst, lallfld, lallvct, lallscl,&
 &    ljbgn, ljend, lkbgn, lkend, llbgn, llend, lftp, sfld, svct, sscl, sgrd)
-    hFile = release2(hFile)
+    hFlow = release2(hFlow)
+    return
+210 fg_loop = 1
   endsubroutine
 
   subroutine output
     integer :: i1, i2
     integer :: hOut
+
+202 format(e14.6, 100(',', e14.6))
+
     do i1=1, lscl
       hOut = lock2()
       open(unit=hOut, file=boutpfx//boutsfx(i1), form='formatted', position='append')
-      write(hOut, 11) (sdat(i2,i1), i2=1, lprcoutcol(lprc))
+      write(hOut, 202) (sout(i2,i1), i2=1, lprcoutcol(lprc))
       hOut = close2(hOut)
     enddo
   endsubroutine
