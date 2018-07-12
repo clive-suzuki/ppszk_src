@@ -4,8 +4,8 @@ module mod_globals
 
   !================================Process=========================
   integer, save :: lprc
-  character(30), parameter :: bprclst(1) = (/ 'searchShock' /)
-  integer, parameter :: lprcoutcol(1) =    (/ 6             /)
+  character(30), parameter :: bprclst(2) = (/ 'searchShock', 'shockHeight' /)
+  integer, parameter :: lprcoutcol(2) =    (/ 6            , 1             /)
 
 
 

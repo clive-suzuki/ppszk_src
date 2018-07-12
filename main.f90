@@ -3,6 +3,7 @@ use mod_VTK_IO
 use mod_szk
 use mod_globals
 use prc_searchShock
+use prc_shockHeight
 
 implicit none
 
@@ -40,6 +41,24 @@ hFileList = openFileListStream(bfilcmd)
         call output
       enddo
 !==========================ここまで処理(1)
+
+!==========================ここから処理(2)
+    case (2)
+      !========ここから可変
+      !call setSearchAxis
+      !call setShockDirection
+      !========ここまで可変
+
+      call readyForCalc
+      fg_loop = 0
+      do while (fg_loop == 0)
+        call input
+        !========ここから可変
+        call shockHeight
+        !========ここまで可変
+        call output
+      enddo
+!==========================ここまで処理(2)
 
     case default
       write(lwrite, *) 'Invalid procedure...'
