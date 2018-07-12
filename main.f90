@@ -8,9 +8,6 @@ use prc_shockHeight
 implicit none
 
 
-
-
-
 !==================================ここからメインプログラム==================================
 
 call readArgs
@@ -45,8 +42,8 @@ hFileList = openFileListStream(bfilcmd)
 !==========================ここから処理(2)
     case (2)
       !========ここから可変
-      !call setSearchAxis
-      !call setShockDirection
+      call setThreshold
+      call setInitial
       !========ここまで可変
 
       call readyForCalc

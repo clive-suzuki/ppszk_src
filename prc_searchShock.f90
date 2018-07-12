@@ -67,7 +67,6 @@ contains
     wcod(ilen+1) = wcod(2) + wcod(ilen)
     if(wcod(2) == wcod(ilen)) fg_valid(ilen) = 0
     do i1=1, lscl
-      sout(1, i1) = sfld(ltimidx)
       do i2=1, ilen
         wdat(i2) = sscl(fg_eta*itgt + fg_xi*i2, fg_eta*i2 + fg_xi*itgt, 1, lscllst(i1))
         if(wdat(i2) == 0.d0) fg_valid(i2) = 0
@@ -85,6 +84,7 @@ contains
         endif
       enddo
       if(imaxdltidx == ilen) imaxdltidx = 1
+      sout(1, i1) = sfld(ltimidx)
       sout(2, i1) = imaxdltidx
       sout(3, i1) = wcod(imaxdltidx)
       sout(4, i1) = wcod(imaxdltidx+1)
