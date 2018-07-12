@@ -4,9 +4,9 @@ module prc_searchShock
 
   implicit none
 
-  integer :: ishkdir
-  integer :: itgtaxs, itgt
-  character(4), parameter :: baxs(2) = (/ 'Xi', 'Eta' /)
+  integer, save, private :: ishkdir
+  integer, save, private :: itgtaxs, itgt
+  character(4), parameter, private :: baxs(2) = (/ 'Xi', 'Eta' /)
 contains
 
   subroutine setSearchAxis
@@ -59,9 +59,9 @@ contains
     allocate(wcod(ilen+1))
     allocate(fg_valid(ilen))
     fg_valid = 1
-    wcod(1) = sgrd(1, fg_eta*itgt + fg_xi, fg_eta + fg_xi*itgt, 1)
+    wcod(1) = sgrd(itgtaxs+1, fg_eta*itgt + fg_xi, fg_eta + fg_xi*itgt, 1)
     do i1=2, ilen
-      wcod(i1) = sgrd(1, fg_eta*itgt + fg_xi*i1, fg_eta*i1 + fg_xi*itgt, 1)
+      wcod(i1) = sgrd(itgtaxs+1, fg_eta*itgt + fg_xi*i1, fg_eta*i1 + fg_xi*itgt, 1)
       if(wcod(i1) == wcod(i1-1)) fg_valid(i1) = 0
     enddo
     wcod(ilen+1) = wcod(2) + wcod(ilen)
