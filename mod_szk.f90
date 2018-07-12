@@ -7,6 +7,9 @@ module mod_szk
   integer, parameter, private :: usedunitmax = 50
   integer, private :: usedunit(usedunitmax)
 
+  interface toString
+    module procedure toStringK, toStringF
+  end interface
 
 contains
 
@@ -20,19 +23,34 @@ contains
     atrim = trim(buf)
   endfunction
 
-  ! toString===============
+  ! toString alias toStringF===============
   !** 整数を文字列へ
   ! * i      整数
   ! * return 文字列
   !========================
-  function toString(i)
-    integer, intent(in) :: i
-    character(:), allocatable :: toString
+  function toStringK(k)
+    integer, intent(in) :: k
+    character(:), allocatable :: toStringK
     character(20) :: str
-    write(str, *) i
+    write(str, *) k
     str = atrim(str)
-    allocate(character(len_trim(str)) :: toString)
-    toString = trim(str)
+    allocate(character(len_trim(str)) :: toStringK)
+    toStringK = trim(str)
+  endfunction
+
+  ! toString alias toStringF===============
+  !** 実数を文字列へ
+  ! * f      実数
+  ! * return 文字列
+  !========================
+  function toStringF(f)
+    real(4), intent(in) :: f
+    character(:), allocatable :: toStringF
+    character(20) :: str
+    write(str, *) f
+    str = atrim(str)
+    allocate(character(len_trim(str)) :: toStringF)
+    toStringF = trim(str)
   endfunction
 
   ! toInteger==============
