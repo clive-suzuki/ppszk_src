@@ -58,6 +58,21 @@ contains
 
 !==================================ここからサブルーチン======================================
 
+  function toFileName(a)
+    character(*), intent(in) :: a
+    character(3) :: cbuf, toFileName
+    integer ::  i
+    cbuf = (trim(a) // '___')
+    toFileName = ''
+    do i=1,3
+      if(cbuf(i:i) == '[' .or. cbuf(i:i) == ']')then
+        toFileName = trim(toFileName) // '-'
+      else
+        toFileName = trim(toFileName) // cbuf(i:i)
+      endif
+    enddo
+  endfunction
+
   subroutine readArgs
     integer :: ifilnamlen
     character(:), allocatable :: cfilnam
@@ -90,26 +105,25 @@ contains
   endsubroutine
 
   subroutine setCaseName
-    character(300) :: cdefoutpfx
+    character(300) :: cdefoutpfx, cdir
     character(100) :: coutpfx
     character(*), parameter :: cdefksk = '_kaiseki'
     integer :: iidx
     call getcwd(cdefoutpfx)
-    write(6,*) cdefoutpfx
     iidx = 1
     do
-      cdefoutpfx = split(cdefoutpfx, '/', iidx)
+      cdir = split(trim(cdefoutpfx), '/', iidx)
       if (iidx == 0) exit
     enddo
-    cdefoutpfx = cdefoutpfx // cdefksk
+    cdefoutpfx = trim(cdir) // cdefksk
 
     write(lwrite,*) 'Input name of this case!'
-    write(lwrite,*) 'Output file name is ***.csv, ***_info.txt, ...etc'
+    write(lwrite,*) 'Output file name is ***_Pre.csv, ***_info.csv, ...etc'
     write(lwrite,*) 'Press only "Enter" key to use default, "' // trim(cdefoutpfx) //'".'
     read(lread,'(a)') coutpfx
     if(len_trim(coutpfx) < 2)then
-      allocate(character(len(cdefoutpfx)) :: boutpfx)
-      boutpfx = cdefoutpfx
+      allocate(character(len_trim(cdefoutpfx)) :: boutpfx)
+      boutpfx = trim(cdefoutpfx)
     else
       allocate(character(len_trim(coutpfx)) :: boutpfx)
       boutpfx = trim(coutpfx)
@@ -117,23 +131,6 @@ contains
     write(lwrite,*) 'case name: ' // boutpfx
     write(lwrite, *) ' '
   endsubroutine
-
-  function trimMid(estr)
-    character(*), intent(in) :: estr
-    character(:), allocatable :: trimMid
-    character(1), parameter :: cspc = ''
-    integer :: ilen, i1, i2
-    ilen = len(estr)
-    allocate(character(ilen) :: trimMid)
-    trimMid = cspc
-    i2 = 1
-    do i1=1, ilen
-      if(estr(i1:i1) /= cspc)then
-        trimMid(i2:i2) = estr(i1:i1)
-        i2 = i2 + 1
-      endif
-    enddo
-  endfunction
 
   subroutine selectFlowInfo
     character(300) :: cflwfil
@@ -149,7 +146,7 @@ contains
     !Get Grid info
     read(hFileList,*) cflwfil
     rewind(hFileList)
-    write(lwrite,*) 'Getting flowfile format from '//trim(cflwfil)
+    write(lwrite,*) 'Getting flowfile format from "'//trim(cflwfil)//'"'
     hFlow = lock2()
       call VTK_Reader_GetNumberOfExtent(cflwfil, hFlow, lwrite, ljbgn, ljend, lkbgn, lkend, llbgn, llend)
       call VTK_Reader_GetNumberOfFunctions(cflwfil, hFlow, lwrite, lallfld, lallvct, lallscl)
@@ -181,7 +178,7 @@ contains
       hInfo = close2(hInfo)
       hInfo = 0
       fg_err = 0
-200   if(fg_err == 0)then
+200   if(fg_err == 1)then
         write(lwrite,*) 'Error! Cannot save info file!'
         write(lwrite, *) ' '
         stop
@@ -199,12 +196,12 @@ contains
     write(lwrite,*) 'Which scalar data do you want?'
     write(lwrite,*) 'e.g.) 1-2-4 : Output No.1, No2 and No4 data.'
     read(lread,*) cinp
-    cinp = trimMid(cinp)
+    cinp = deleteSpace(cinp)
     lscl = countstr(trim(cinp), '-') + 1
     allocate(cinplst(lscl))
     iidx = 1
     do i1=1, lscl
-      cinplst(iidx) = split(trim(cinp), '-', iidx)
+      cinplst(i1) = split(trim(cinp), '-', iidx)
     enddo
     allocate(lscllst(lscl))
     allocate(bscllst(lscl))
@@ -214,8 +211,8 @@ contains
     do i1=1, lscl
       lscllst(i1) = toInteger(cinplst(i1))
       bscllst(i1) = ballscllst(lscllst(i1))
-      boutsfx(i1) = '_' // trimMid(bscllst(i1)) // '.csv'
-      write(lwrite,*) trim(adjustl(bscllst(i1)))
+      boutsfx(i1) = '_' // toFileName(deleteSpace(bscllst(i1))) // '.csv'
+      write(lwrite,*) atrim(bscllst(i1))
     enddo
     write(lwrite, *) ' '
     write(lwrite, *) 'Field data are'
@@ -239,7 +236,7 @@ contains
     write(lwrite,*) 'Which procedure do you use?'
     read(lread, *) lprc
     write(lwrite,*) 'Procedure: '
-    write(lwrite,*) bprclst(iidx)
+    write(lwrite,*) bprclst(lprc)
     write(lwrite, *) ' '
     write(lwrite, *) 'Now, entering user procedure...'
     write(lwrite, *) ' '
@@ -247,16 +244,17 @@ contains
 
   subroutine readyForCalc
     integer :: i1
-    write(lread,*) 'Now deleting old files...'
+    write(lwrite,*) 'Now deleting old files...'
     do i1=1, lscl
       call system('rm '//trim(boutpfx//boutsfx(i1)))
     enddo
-    allocate(sfld(lfld))
+    allocate(sfld(lallfld))
     allocate(lftp(lfld))
-    allocate(svct(3, ljlen, lklen, lllen, lvct))
-    allocate(sscl(ljlen, lklen, lllen, lscl))
+    allocate(svct(3, ljlen, lklen, lllen, lallvct))
+    allocate(sscl(ljlen, lklen, lllen, lallscl))
     allocate(sgrd(3, ljlen, lklen, lllen))
     allocate(sout(lprcoutcol(lprc), lscl))
+    write(lwrite,*) 'Start main loop...'
   endsubroutine
 
   subroutine input
@@ -268,7 +266,7 @@ contains
     hFlow = lock2()
     call VTK_Reader_StructuredGrid(cflwfil, hFlow, lwrite, cdbg,&
 &    ballfldlst, ballvctlst, ballscllst, lallfld, lallvct, lallscl,&
-&    ljbgn, ljend, lkbgn, lkend, llbgn, llend, lftp, sfld, svct, sscl, sgrd)
+&    ljbgn, ljend, lkbgn, lkend, llbgn, llend, lallftplst, sfld, svct, sscl, sgrd)
     hFlow = release2(hFlow)
     return
 210 fg_loop = 1

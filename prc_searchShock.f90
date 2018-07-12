@@ -15,7 +15,7 @@ contains
       read(lread, *) itgtaxs
       if(itgtaxs==0 .or. itgtaxs==1) exit
     enddo
-    write(lwrite,*) 'Target point of ' // trim(baxs(itgtaxs + 1)) // 'is...?'
+    write(lwrite,*) 'Target point of ' // trim(baxs(2-itgtaxs)) // ' is...?'
     read(lread, *) itgt
     select case (itgtaxs)
       case(0)
@@ -29,18 +29,18 @@ contains
   endsubroutine
 
   subroutine setShockDirection
-    write(6,*) 'Do you determine shock direction? ( -1/ 1 ) If not, input 0.'
+    write(lwrite,*) 'Do you determine shock direction? ( -1/ 1 ) If not, input 0.'
     do
       read(lread,*) ishkdir
-      if(ishkdir==0 .or. ishkdir==1 .or. ishkdir==2) exit
+      if(ishkdir==0 .or. ishkdir==-1 .or. ishkdir==1) exit
     enddo
     select case (ishkdir)
       case(-1)
-        write(lwrite, *) 'Shock direction is - ' // baxs(itgtaxs) // '.'
+        write(lwrite, *) 'Shock direction is - ' // baxs(itgtaxs+1) // '.'
       case(0)
-        write(lwrite, *) 'Shock direction is +- ' // baxs(itgtaxs) // '.'
+        write(lwrite, *) 'Shock direction is +- ' // baxs(itgtaxs+1) // '.'
       case(1)
-        write(lwrite, *) 'Shock direction is + ' // baxs(itgtaxs) // '.'
+        write(lwrite, *) 'Shock direction is + ' // baxs(itgtaxs+1) // '.'
     end select
   endsubroutine
 
@@ -55,15 +55,14 @@ contains
     fg_xi = 1 - itgtaxs
     fg_eta = itgtaxs
     ilen = fg_eta*lklen + fg_xi*ljlen
-
     allocate(wdat(ilen+1))
     allocate(wcod(ilen+1))
     allocate(fg_valid(ilen))
     fg_valid = 1
     wcod(1) = sgrd(1, fg_eta*itgt + fg_xi, fg_eta + fg_xi*itgt, 1)
     do i1=2, ilen
-      wcod(i2) = sgrd(1, fg_eta*itgt + fg_xi*i2, fg_eta*i2 + fg_xi*itgt, 1)
-      if(wcod(i2) == wcod(i2-1)) fg_valid(i2) = 0
+      wcod(i1) = sgrd(1, fg_eta*itgt + fg_xi*i1, fg_eta*i1 + fg_xi*itgt, 1)
+      if(wcod(i1) == wcod(i1-1)) fg_valid(i1) = 0
     enddo
     wcod(ilen+1) = wcod(2) + wcod(ilen)
     if(wcod(2) == wcod(ilen)) fg_valid(ilen) = 0
@@ -75,9 +74,10 @@ contains
       enddo
       wdat(ilen+1) = wdat(2)
       wmaxdlt = 0.d0
+      imaxdltidx = 1
       do i2=1, ilen
         if(fg_valid(i2) == 0) continue
-        wdlt = wdat(i2+1) - wdat(i2)
+        wdlt = wdat(i2) - wdat(i2+1)
         wdlt = (wdlt*ishkdir + (1-abs(ishkdir))*abs(wdlt)) / abs(wcod(i2+1) - wcod(i2))
         if(wmaxdlt < wdlt)then
           imaxdltidx = i2
@@ -91,6 +91,7 @@ contains
       sout(5, i1) = wdat(imaxdltidx)
       sout(6, i1) = wdat(imaxdltidx+1)
     enddo
+
   endsubroutine
 
 end module
