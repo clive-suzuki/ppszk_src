@@ -20,61 +20,40 @@ hFileList = openFileListStream(ffilter)
   call selectFlowInfo
   call selectProcess
   select case (lprc)
+
+!==========================ここから処理(1)
     case (1)
-      !shockSearch
+      !========ここから可変
       call setSearchAxis
       call setShockDirection
+      !========ここまで可変
 
       call readyForCalc
       do
-        call mainloop
+        call input
+        !========ここから可変
+        call searchShock
+        !========ここまで可変
+        call output
       enddo
+!==========================ここまで処理(1)
+
     case default
       write(lwrite, *) 'Invalid procedure...'
+      hFileList = closeFindListStream(hFileList)
+      stop
+
   end select
-  if(lread /=5) lread=close2(lread)
+100 hFileList = closeFindListStream(hFileList)
+if(lread /=5) lread=close2(lread)
+write(lwrite, *) 'MISSION ACCOMPLISHED !!!!'
+stop
 
 !==================================ここまでメインプログラム==================================
 
-
-
-
-
-
-
-
-
-
-
-!==================================CALC==================================
-
-
-
-
-
-do
-
-
-
-  write(6, *) ifname
-
-!$OMP PARALLEL DO PRIVATE(i)
-  do i=1,fncnum
-    hOut = lock2()
-    open(unit=hOut, file=trim(oname)//exts(i), form='formatted', position='append')
-    write(hOut, 11) (dat(j,i), j=1, 6)
-    hOut = close2(hOut)
-  enddo
-!$OMP END PARALLEL DO
-enddo
-999 hFileList = closeFindListStream(hFileList)
-
-
-
-
-
-
 contains
+
+!==================================ここからサブルーチン======================================
 
   subroutine readArgs
     integer :: ifilnamlen
@@ -84,7 +63,6 @@ contains
       allocate(character(ibuf) :: cfilnam)
       call get_command_argument(1, cfilnam)
       lread = open2(file=cfilnam, form='formatted', status='old')
-      deallocate(cfilnam)
     else
       lread = 5
     endif
@@ -153,10 +131,8 @@ contains
   subroutine selectFlowInfo
     character(300) :: cflwfil
     integer :: hFlow, hInfo
-    integer :: ifld, ivct, iscl
-    character(30), allocatable :: cfldlst(:), cvctlst(:), cscllst(:), cinplst(:)
+    character(30), allocatable :: cinplst(:)
     character(30) :: cinp
-    integer, allocatable :: iftplst
     character(*), parameter :: cinfsfx = '_info.csv'
     integer :: fg_err
     integer :: iidx, i1
@@ -167,13 +143,13 @@ contains
     write(lwrite,*) 'Getting flowfile format from '//trim(cflwfil)
     hFlow = lock2()
       call VTK_Reader_GetNumberOfExtent(cflwfil, hFlow, lwrite, ljbgn, ljend, lkbgn, lkend, llbgn, llend)
-      call VTK_Reader_GetNumberOfFunctions(cflwfil, hFlow, lwrite, ifld, ivct, iscl)
-      allocate(cfldlst(ifld))
-      allocate(cvctlst(ivct))
-      allocate(cscllst(iscl))
-      allocate(iftplst(ifld))
-      call VTK_Reader_GetNumberOfTuples(cflwfil, hFlow, lwrite, ifld, iftplst)
-      call VTK_Reader_GetFunctionNames(cflwfil, hFlow, lwrite, ifld, ivct, iscl, cfldlst, cvctlst, cscllst)
+      call VTK_Reader_GetNumberOfFunctions(cflwfil, hFlow, lwrite, lallfld, lallvct, lallscl)
+      allocate(ballfldlst(lallfld))
+      allocate(ballvctlst(lallvct))
+      allocate(ballscllst(lallscl))
+      allocate(lallftplst(lallfld))
+      call VTK_Reader_GetNumberOfTuples(cflwfil, hFlow, lwrite, lallfld, lallftplst)
+      call VTK_Reader_GetFunctionNames(cflwfil, hFlow, lwrite, lallfld, lallvct, lallscl, ballfldlst, ballvctlst, ballscllst)
     hFlow = release2(hFlow)
 
     !Get FlowFile Functions
@@ -186,13 +162,13 @@ contains
       open(unit=hInfo, file=boutpfx//cinfsfx, form='formatted', status='replace', err=200)
       write(hInfo, *) 'Sum of grids,' // toString(ljklsum)
       write(hInfo, *) 'Grid Info (xi-eta-zeta),' // toString(ljlen) // ',' // toString(lklen) // ',' // toString(lllen)
-      write(hInfo, *) 'Number of Field data,' // toString(ifld)
-      write(hInfo, 10) 'Field data,', (cfldlst(iidx), iidx=1, ifld)
-      write(hInfo, 10) 'Size of field data tuples,', (toString(iftplst(iidx)), iidx=1, ifld)
-      write(hInfo, *) 'Number of scalars,' // toString(iscl)
-      write(hInfo, 10) 'Scalar data,', (cscllst(iidx), iidx=1, iscl)
-      write(hInfo, *) 'Number of vectors,' // toString(ivct)
-      write(hInfo, 10) 'Vecor data,', (cvctlst(iidx), iidx=1, ivct)
+      write(hInfo, *) 'Number of Field data,' // toString(lallfld)
+      write(hInfo, 10) 'Field data,', (ballfldlst(iidx), iidx=1, lallfld)
+      write(hInfo, 10) 'Size of field data tuples,', (toString(lallftplst(iidx)), iidx=1, lallfld)
+      write(hInfo, *) 'Number of scalars,' // toString(lallscl)
+      write(hInfo, 10) 'Scalar data,', (ballscllst(iidx), iidx=1, lallscl)
+      write(hInfo, *) 'Number of vectors,' // toString(lallvct)
+      write(hInfo, 10) 'Vecor data,', (ballvctlst(iidx), iidx=1, lallvct)
       hInfo = close2(hInfo)
       hInfo = 0
       fg_err = 0
@@ -207,8 +183,8 @@ contains
     write(lwrite, *) 'Grid Points (xi, eta, zeta),' // toString(ljlen) // ',' // toString(lklen) // ',' // toString(lllen)
 
     !Choose Functions
-    do i1=1, iscl
-      write(lwrite, *) trim(toString(i1)//' : '//cscllst(i1))
+    do i1=1, lallscl
+      write(lwrite, *) trim(toString(i1)//' : '//ballscllst(i1))
     enddo
     write(lwrite,*) 'Which scalar data do you want?'
     write(lwrite,*) 'e.g.) 1-2-4 : Output No.1, No2 and No4 data.'
@@ -227,14 +203,14 @@ contains
     write(lwrite,*) toString(lscl)//'data set(s)'
     do i1=1, lscl
       lscllst(i1) = toInteger(cinplst(i1))
-      bscllst(i1) = cscllst(lscllst(i1))
+      bscllst(i1) = ballscllst(lscllst(i1))
       boutsfx(i1) = '_' // trimMid(bscllst(i1)) // '.csv'
       write(lwrite,*) trim(adjustl(bscllst(i1)))
     enddo
     write(lwrite, *) ' '
     write(lwrite, *) 'Field data are'
-    do i1=1, ifld
-      write(lwrite, *) trim(toString(i1) // ' : ' // cfldlst(i1))
+    do i1=1, lallfld
+      write(lwrite, *) trim(toString(i1) // ' : ' // ballfldlst(i1))
     enddo
     write(lwrite,*) 'Which field data do you use as time?'
     read(lread,*) ltimidx
@@ -257,26 +233,38 @@ contains
     do i1=1, lscl
       call system('rm '//trim(boutpfx//boutsfx))
     enddo
-    allocate(wfld(ifld))
-    allocate(wvct(3, ljlen, lklen, lllen, lvct))
-    allocate(wscl(ljlen, lklen, lllen, lscl))
-    allocate(wgrd(3, ljlen, lklen, lllen))
-    allocate(dat(lprcoutcol(lprc), lscl))
+    allocate(sfld(ifld))
+    allocate(lftp(ifld))
+    allocate(svct(3, ljlen, lklen, lllen, lvct))
+    allocate(sscl(ljlen, lklen, lllen, lscl))
+    allocate(sgrd(3, ljlen, lklen, lllen))
+    allocate(sdat(lprcoutcol(lprc), lscl))
   endsubroutine
 
-  subroutine mainloop
+  subroutine input
     character(300) :: cflwfil
     integer :: hFlow
     character(*), parameter :: cdbg = '    '
-    read(hFileList,*, end=999) iflwfil
+    read(hFileList,*, end=100) cflwfil
+    write(lwrite, *) cflwfil
     hFlow = lock2()
     call VTK_Reader_StructuredGrid(iflwfil, hFlow, lwrite, cdbg,&
-&    flst, vlst, slst, ifld, ivct, iscl,&
-  & jbgn, jend, kbgn, kend, lbgn, lend,&
-  & iftp, wfld, wvct, wscl, wgrd)
+&    ballfldlst, ballvctlst, ballscllst, lallfld, lallvct, lallscl,&
+&    ljbgn, ljend, lkbgn, lkend, llbgn, llend, lftp, sfld, svct, sscl, sgrd)
     hFile = release2(hFile)
-    dat = searchShock(fncnum, fg_tgt-1, tgt, idxtime, shockdir,&
-  & wfld, wscl, wgrd, jbgn, jend, kbgn, kend)
   endsubroutine
+
+  subroutine output
+    integer :: i1, i2
+    integer :: hOut
+    do i1=1, lscl
+      hOut = lock2()
+      open(unit=hOut, file=boutpfx//boutsfx(i1), form='formatted', position='append')
+      write(hOut, 11) (sdat(i2,i1), i2=1, lprcoutcol(lprc))
+      hOut = close2(hOut)
+    enddo
+  endsubroutine
+
+!==================================ここまでサブルーチン======================================
 
 end program

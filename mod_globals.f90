@@ -20,9 +20,12 @@ module mod_globals
   integer, save :: ljlen, lklen, lllen, ljklsum
   integer, save :: lfld, lvct, lscl, ltimidx
   integer, allocatable, save :: lscllst, bscllst
+  integer, save :: lallfld, lallvct, lallscl
+  character(30), allocatable, save :: lallfldlst(:), lallvctlst(:), lallscllst(:)
 
   !================================Common Calculation==============
-  real(4), allocatable, save :: wfld(:), wvct(:,:,:,:,:), wscl(:,:,:,:), wgrd(:,:,:,:)
-  real(4), allocatable, save :: wout(:,:)
+  real(4), allocatable, save :: sfld(:), svct(:,:,:,:,:), sscl(:,:,:,:), sgrd(:,:,:,:)
+  real(4), allocatable, save :: sout(:,:)
+  integer, allocatable, save :: lftp(:)
 
 end module
