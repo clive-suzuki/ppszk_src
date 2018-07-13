@@ -8,7 +8,7 @@ module prc_shockHeight
 
 contains
 
-subroutine setThreshold
+subroutine shockHeightInit
   integer :: i1
   allocate(wthh(lscl))
   allocate(fg_cmp(lscl))
@@ -35,10 +35,6 @@ subroutine setThreshold
     endif
   enddo
   write(lwrite,*) ' '
-endsubroutine
-
-subroutine setInitial
-  integer :: i1
   allocate(wini(lscl))
   write(lwrite,*) 'What is initial compare value?'
   write(lwrite,*) 'Set each functions:'
@@ -53,7 +49,7 @@ subroutine setInitial
   write(lwrite,*) ' '
 endsubroutine
 
-subroutine shockHeight
+subroutine shockHeightMain
   real(4) :: wmindat, wdat, wnewthh
   integer ::  i, j, k
   integer :: iminidx(2)
@@ -64,7 +60,6 @@ subroutine shockHeight
     do k=lkbgn, lkend
       do j=ljbgn, ljend
         wdat = sscl(j, k, 1, lscllst(i)) * fg_cmp(i)
-!write(6,*) toString(j)//' '//toString(k)//' '//toString(wnewthh)//' '//toString(wdat)//' '//toString(wmindat)
         if(wnewthh < wdat .and. wdat < wmindat)then
           wmindat = wdat
           iminidx(1) = j
