@@ -7,9 +7,19 @@ module mod_szk
   integer, parameter, private :: usedunitmax = 50
   integer, private :: usedunit(usedunitmax)
 
+  interface toString
+    module procedure toStringK, toStringF
+  end interface
 
 contains
 
+  ! atrim==================
+  !** 文字列の左右の空白を削除
+  ! * a      文字列
+  ! * return トリム後の文字列
+  !
+  ! "  abc def   " => "abc def"
+  !========================
   function atrim(a)
     character(*), intent(in) :: a
     character(:), allocatable :: atrim
@@ -20,19 +30,34 @@ contains
     atrim = trim(buf)
   endfunction
 
-  ! toString===============
+  ! toString alias toStringK===============
   !** 整数を文字列へ
   ! * i      整数
   ! * return 文字列
   !========================
-  function toString(i)
-    integer, intent(in) :: i
-    character(:), allocatable :: toString
+  function toStringK(k)
+    integer, intent(in) :: k
+    character(:), allocatable :: toStringK
     character(20) :: str
-    write(str, *) i
+    write(str, *) k
     str = atrim(str)
-    allocate(character(len_trim(str)) :: toString)
-    toString = trim(str)
+    allocate(character(len_trim(str)) :: toStringK)
+    toStringK = trim(str)
+  endfunction
+
+  ! toString alias toStringF===============
+  !** 実数を文字列へ
+  ! * f      実数
+  ! * return 文字列
+  !========================
+  function toStringF(f)
+    real(4), intent(in) :: f
+    character(:), allocatable :: toStringF
+    character(20) :: str
+    write(str, *) f
+    str = atrim(str)
+    allocate(character(len_trim(str)) :: toStringF)
+    toStringF = trim(str)
   endfunction
 
   ! toInteger==============
@@ -101,6 +126,13 @@ contains
     enddo
   endfunction
 
+  ! deleteSpace==================
+  !** 文字列中のスペースを削除
+  ! * estr   文字列
+  ! * return スペースを削除した文字列
+  !
+  ! "  abc def   " => "abcdef"
+  !========================
   function deleteSpace(estr)
     character(*), intent(in) :: estr
     character(:), allocatable :: deleteSpace
@@ -122,6 +154,11 @@ contains
     deleteSpace = trim(sbuf)
   endfunction
 
+  ! openFileListStream=====
+  !** 名称変更予定，コマンドの出力結果ファイルのストリームを開く
+  ! * command   コマンド
+  ! * return    ファイルハンドル（必ず閉じること！）
+  !========================
   function openFileListStream(command)
     character(*), intent(in), optional :: command
     integer :: openFileListStream
@@ -132,12 +169,23 @@ contains
     endif
     openFileListStream = open2(findlist, 'old', 'formatted')
   endfunction
-  function closeFindListStream(unit)
-    integer, intent(in) :: unit
+
+  ! closeFileListStream=====
+  !** 名称変更予定，コマンドの出力結果ファイルのストリームを閉じる
+  ! * hfile   ファイルハンドル
+  ! * return  ファイルハンドル（hfileと同じ）
+  !========================
+  function closeFindListStream(hfile)
+    integer, intent(in) :: hfile
     integer :: closeFindListStream
-    closeFindListStream = close2(unit)
+    closeFindListStream = close2(hfile)
     call system('rm ' // findlist)
   endfunction
+
+  ! lock2==================
+  !** 空いているUnit番号を確保（必ず返却すること）
+  ! * return  確保したUnit番号（空きがなかったら0）
+  !========================
   function lock2()
     integer :: lock2
     integer :: i
@@ -151,12 +199,27 @@ contains
     enddo
     write(6,*) 'ERROR MOD_SZK !! Cannot open file!'
   endfunction
+
+  ! release2==================
+  !** 確保しているUnit番号を返却
+  ! * unit    確保しているUnit番号
+  ! * return  確保していたUnit番号（unitと同じ）
+  !========================
   function release2(unit)
     integer, intent(in) :: unit
     integer :: release2
     release2 = unit
     usedunit(unit - 20) = 0
   endfunction
+
+  ! open2==================
+  !** 空いているUnit番号を確保し，それでファイルを開く（必ず返却すること）
+  !   Optional引数関連のバグがあるため，すべて指定することを推奨
+  ! * file    ファイル名
+  ! * status
+  ! * form
+  ! * return  確保したUnit番号（空きがなかったら0）
+  !========================
   function open2(file , status, form)!lockに統合？
     integer :: open2
     character(len=*), intent(in) :: file
@@ -168,6 +231,12 @@ contains
     endif
     write(6,*) 'ERROR MOD_SZK !! Cannot open file!'
   endfunction
+
+  ! close2==================
+  !** ファイルを閉じ，確保しているUnit番号を返却
+  ! * unit    確保しているUnit番号
+  ! * return  確保していたUnit番号（unitと同じ）
+  !========================
   function close2(unit)
     integer, intent(in) :: unit
     integer :: close2
