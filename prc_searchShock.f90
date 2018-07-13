@@ -9,7 +9,7 @@ module prc_searchShock
   character(4), parameter, private :: baxs(2) = (/ 'Xi', 'Eta' /)
 contains
 
-  subroutine setSearchAxis
+  subroutine searchShockInit
     do
       write(lwrite,*) 'Which direction do you want? (0: xi / 1: eta)'
       read(lread, *) itgtaxs
@@ -26,9 +26,6 @@ contains
         write(lwrite, *) 'Eta = variable'
     end select
     write(lwrite, *) ' '
-  endsubroutine
-
-  subroutine setShockDirection
     write(lwrite,*) 'Do you determine shock direction? ( -1/ 1 ) If not, input 0.'
     do
       read(lread,*) ishkdir
@@ -44,7 +41,7 @@ contains
     end select
   endsubroutine
 
-  subroutine searchShock
+  subroutine searchShockMain
     integer :: ilen
     integer :: i1, i2, imaxdltidx
     integer :: fg_xi, fg_eta

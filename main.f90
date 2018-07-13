@@ -23,36 +23,24 @@ hFileList = openFileListStream(bfilcmd)
 
 !==========================ここから処理(1)
     case (1)
-      !========ここから可変
-      call setSearchAxis
-      call setShockDirection
-      !========ここまで可変
-
+      call searchShockInit!========ここ可変
       call readyForCalc
       fg_loop = 0
       do while (fg_loop == 0)
         call input
-        !========ここから可変
-        call searchShock
-        !========ここまで可変
+        call searchShockMain!========ここ可変
         call output
       enddo
 !==========================ここまで処理(1)
 
 !==========================ここから処理(2)
     case (2)
-      !========ここから可変
-      call setThreshold
-      call setInitial
-      !========ここまで可変
-
+      call shockHeightInit!========ここ可変
       call readyForCalc
       fg_loop = 0
       do while (fg_loop == 0)
         call input
-        !========ここから可変
-        call shockHeight
-        !========ここまで可変
+        call shockHeightMain!========ここ可変
         call output
       enddo
 !==========================ここまで処理(2)
